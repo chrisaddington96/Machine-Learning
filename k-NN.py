@@ -3,7 +3,7 @@
 Author: Chris Addington
 Assignment: k-NN and k-Means
 Course: CS 460 Machine Learning
-Code provided by Dr. Siddique at the University of Kentucky
+Some code provided by Dr. Siddique at the University of Kentucky
 
 File Description: File to implement k Nearest Neighbor algorithm and work
 with datasets.
@@ -12,9 +12,71 @@ with datasets.
 from math import *
 from decimal import Decimal
 from random import seed
-from random import randrange
-from csv import reader
+from random import randrange, uniform, choice
+from csv import reader, writer
 import os
+
+# Random dataset generator
+def make_random_dataset(num_dimension, num_rows):
+    # Make an empty list
+    dataset = []
+    
+    # Populate the list with random numbers
+    for i in range(num_rows):
+        indv_data = []
+        data_sum = 0
+        for j in range(num_dimension):
+            value = uniform(0.0, 10.0)
+            indv_data.append(value)
+            data_sum += value
+
+        # Create labels
+        rand_label = choice(['pos', 'neg'])
+        indv_data.append(rand_label)
+
+        
+        dataset.append(indv_data)
+    return dataset
+
+def test_rand_data(num_dimension, num_rows):
+    dataset = make_random_dataset(num_dimension, num_rows)
+    print(dataset)  
+
+# Make list of words
+words_list = ['dog', 'cat', 'the', 'at', 'frog', 'man', 'woman', 'or', 'with', 'without', 'class',
+                  'machine', 'learning', 'football', 'soccer', 'done', 'word']
+
+def make_rand_bow(num_words):    
+    # make empty list of words
+    new_list = list()
+    
+    # Add words to the list
+    for i in range(num_words):
+        new_list.append(choice(words_list))
+        
+    return new_list
+
+def test_bow_gen():
+    num_words = 10
+    list_of_list = list()
+    for i in range(10):
+        list_of_list.append(make_rand_bow(num_words))
+    print(make_vector(list_of_list[0]))
+
+# Make the BOW vector
+def make_vector(test_string):
+    bow_vector = list()
+    # Check each word in test_string against the dictionary
+    for word in words_list:
+        word_count = test_string.count(word)
+        bow_vector.append(word_count)
+        
+    # Create labels
+    rand_label = choice(['pos', 'neg'])
+    bow_vector.append(rand_label)
+        
+    return bow_vector
+                
 
 # Dataset for testing purporses
 '''
@@ -182,13 +244,99 @@ def k_nearest_neighbors(train, test, num_neighbors=3, distance_func=2):
         predictions.append(output)
     return predictions
 
+def confusion_matrix(dataset, algorithm, n_folds, *args):
+    # Make true/false negative and positive vars
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    
+    # Find true/false positive, true/false negative, and total number
+    # Evaluate the algorithm using cross validation split
+    folds = cross_validation_split(dataset, n_folds)
+    for fold in folds:
+        train_set = list(folds)
+        train_set.remove(fold)
+        train_set = sum(train_set, [])
+        test_set = list()
+        for row in fold:
+            row_copy = list(row)
+            test_set.append(row_copy)
+            row_copy[-1] = None
+        predicted = algorithm(train_set, test_set, *args)
+        actual = [row[-1] for row in fold]
+        
+        # True positive and false negative
+        if actual[0] == 'pos':
+            # True positive
+            if predicted[0] == actual[0]:
+                tp += 1
+            # False negative
+            else:
+                fn += 1
+        # False positive and true negative
+        else:
+            # False positive
+            if predicted[0] == 'pos':
+                fp += 1
+            # True Negative
+            else:
+                tn += 1
+                
+        # True positive and false negative
+        if actual[1] == 'pos':
+            # True positive
+            if predicted[1] == actual[1]:
+                tp += 1
+            # False negative
+            else:
+                fn += 1
+        # False positive and true negative
+        else:
+            # False positive
+            if predicted[1] == 'pos':
+                fp += 1
+            # True Negative
+            else:
+                tn += 1    
+    
+    # Calculate Accuracy
+    if (tp + tn + fp + fn) > 0:
+        acc = (tp + tn)/ (tp + tn + fp + fn)
+    else:
+        acc = 0
+    
+    # Calculate Precision
+    if (tp + fp) > 0:
+        prec = tp / (tp + fp)
+    else:
+        prec = 0
+    
+    # Calculate Recall
+    if (tp + fn) > 0:    
+        rec = tp / (tp + fn)
+    else:
+        rec = 0
+    
+    # Calculate F1 score
+    if (prec + rec) > 0:
+        f1 = 2 * (prec * rec) / (prec + rec)
+    else:
+        f1 = 0
+    
+    return acc, prec, rec, f1
+
 # Global vars for testing
-seed(1)
+#seed(1)
 n_folds = 5
-num_neighbors = 5
+num_neighbors = 3
 distance_func = 2
+num_dimension = 1000
+num_rows = 10
+num_words = 100
 
 def kNN_driver(filename='iris.csv'):
+    '''
     # Load data set
     dataset = load_csv(filename)
     
@@ -198,6 +346,28 @@ def kNN_driver(filename='iris.csv'):
         
     # Convert class column to ints
     str_column_to_int(dataset, len(dataset[0])-1)
+    '''
+    
+    # Randomly create dataset
+    dataset = make_random_dataset(num_dimension, num_rows)
+    print(dataset)
+
+    
+    # Evaluate algorithm
+
+    scores = evaluate_algorithm(dataset, k_nearest_neighbors, n_folds, num_neighbors, distance_func)
+    print('Scores %s' % scores)
+    print('Mean Accuracy: %.3f%%' % (sum(scores)/float(len(scores))))
+    
+    acc, prec, rec, f1 = confusion_matrix(dataset, k_nearest_neighbors, n_folds, num_neighbors, distance_func)
+    print("Accuracy: %.3f%%\nPrecision: %.3f%%\nRecall: %.3f%%\nF1 Score: %.3f%%" % (acc*100, prec*100, rec*100, f1*100))
+    
+def kNN_bow_driver():
+    # Randomly create dataset
+    dataset = list()
+    for i in range(num_rows):
+        bow_rep = make_rand_bow(num_words)
+        dataset.append(make_vector(bow_rep))
     
     # Evaluate algorithm
 
@@ -209,7 +379,5 @@ def kNN_driver(filename='iris.csv'):
 Execute main function
 '''
 if __name__ == "__main__":
-    #test_dist_funcs()
-    #test_neighbors()
-    #test_prediction()
     kNN_driver()
+    #test_bow_gen()
